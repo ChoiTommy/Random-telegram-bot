@@ -1,12 +1,13 @@
 '''
- Reference
+ References
  https://github.com/python-telegram-bot/python-telegram-bot/tree/master/examples
  https://python-telegram-bot.readthedocs.io/en/stable/index.html
 '''
-import logging
+import logging, os
 
-from telegram import Update, ForceReply, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Updater, CommandHandler, MessageHandler, ConversationHandler, Filters, CallbackContext
+from dotenv import load_dotenv
 
 # Enable logging
 logging.basicConfig(
@@ -15,11 +16,12 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+load_dotenv()
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 def start(update: Update, context: CallbackContext) -> int:
-    context.bot.send_message(update.message.chat.id, 'You look a bit confused man. Is that because of the painful engineering assignment? Try me if you face any difficulty in your engineering courses!')
-    context.bot.send_message(
-        update.message.chat.id,
+    update.message.reply_text('You look a bit confused man. Is that because of the painful engineering assignment? Try me if you face any difficulty in your engineering courses!')
+    update.message.reply_text(
         'Did your stuff move?',
         reply_markup = ReplyKeyboardMarkup([['Yes', 'No']], resize_keyboard = True)
     )
@@ -28,8 +30,7 @@ def start(update: Update, context: CallbackContext) -> int:
 def should_it_move(update: Update, context: CallbackContext) -> int: # state 0
     text = update.message.text
     context.user_data['DID_IT_MOVE'] = True if text == 'Yes' else False
-    context.bot.send_message(
-        update.message.chat.id,
+    update.message.reply_text(
         'Should it?',
         reply_markup = ReplyKeyboardMarkup([['Yes', 'No']], resize_keyboard = True)
     )
@@ -41,30 +42,24 @@ def solution(update: Update, context: CallbackContext) -> int: # state 1
 
     if context.user_data['DID_IT_MOVE'] != context.user_data['SHOULD_IT_MOVE']:
         if context.user_data['DID_IT_MOVE']:
-            context.bot.send_photo(update.message.chat.id, 'https://imgur.com/t/duct_tape/DcB488r', 'Here\'s your tape. Problem solved. Close file.', reply_markup=ReplyKeyboardRemove())
+            update.message.reply_photo('https://imgur.com/t/duct_tape/DcB488r', 'Here\'s your tape. Problem solved. Close file.', reply_markup=ReplyKeyboardRemove())
         else:
-            context.bot.send_photo(update.message.chat.id, 'https://imgur.com/gallery/5ByolFl', 'Go and grab the cologne loved by most engineers - WD-40. Trust me it WORKS.', reply_markup=ReplyKeyboardRemove())
+            update.message.reply_photo('https://imgur.com/gallery/5ByolFl', 'Go and grab the cologne loved by most engineers - WD-40. Trust me it WORKS.', reply_markup=ReplyKeyboardRemove())
     else:
-        context.bot.send_message(update.message.chat.id, 'Fret not! Your stuff is fine.', reply_markup=ReplyKeyboardRemove())
+        update.message.reply_text('Fret not! Your stuff is fine.', reply_markup=ReplyKeyboardRemove())
 
     context.user_data.clear()
     return ConversationHandler.END
 
 def cancel(update: Update, context: CallbackContext) -> int:
-    context.bot.send_message(update.message.chat.id, 'The process is cancelled. Type the command /start again to restart the program.', reply_markup=ReplyKeyboardRemove())
+    update.message.reply_text('The process is cancelled. Type the command /start again to restart the program.', reply_markup=ReplyKeyboardRemove())
     context.user_data.clear()
     return ConversationHandler.END
-
-def get_token() -> str:
-    f = open('key.txt', 'r')
-    key = f.readline()
-    f.close()
-    return key
 
 def main() -> None:
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
-    updater = Updater(get_token())
+    updater = Updater(BOT_TOKEN)
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
