@@ -3,7 +3,7 @@ https://en.wikipedia.org/wiki/UTM_parameters
 https://docs.python.org/3/library/urllib.parse.html
 https://stackoverflow.com/questions/38565952/how-to-receive-messages-in-group-chats-using-telegram-bot-api
 '''
-import logging, os
+import logging, os #, urlexpander # TODO https://github.com/SMAPPNYU/urlExpander
 
 from telegram import Update
 from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CommandHandler
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-def remove_tracker(update: Update, context: CallbackContext) -> None:
+def remove_tracker_or_unshorten(update: Update, context: CallbackContext) -> None:
     for og_url in update.message.parse_entities('url').values():
         modified = False
         parsed_url = urlparse(og_url)
@@ -43,7 +43,7 @@ def main() -> None:
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
 
-    dispatcher.add_handler(MessageHandler(Filters.entity("url"), remove_tracker))
+    dispatcher.add_handler(MessageHandler(Filters.entity("url"), remove_tracker_or_unshorten))
     dispatcher.add_handler(CommandHandler('start', start))
 
     # Start the Bot
