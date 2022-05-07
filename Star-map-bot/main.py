@@ -62,12 +62,13 @@ Your currently set location is
 Latitude: {data[user_id]["latitude"]}
 Longitude: {data[user_id]["longitude"]}
 Location: {data[user_id]["address"]}
-/setlocation to modify it.
+
+/setlocation to modify it. /deletemyinfo to delete your data.
             '''
         )
     else:
         update.message.reply_text(
-            f'''Hi {update.effective_user.username},
+            f'''Hi @{update.effective_user.username},
 You have yet to set any location.
 /setlocation to start off.
             '''
@@ -103,12 +104,13 @@ def update_location(update: Update, context: CallbackContext) -> int:
     data = context.user_data["JSON"]
 
     context = ssl._create_unverified_context()
-    NOMINATIM_REVERSE_API = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={longi}"
+    NOMINATIM_REVERSE_API = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={longi}&accept-language=en-US"
     # print(NOMINATIM_REVERSE_API)
     with urllib.request.urlopen(NOMINATIM_REVERSE_API, context=context) as address_file:
         address_data = json.load(address_file)
 
-    address_string = f"{address_data['address']['suburb']}, {address_data['address']['country']}"
+    # address_string = f"{address_data['address']['suburb']}, {address_data['address']['country']}"
+    address_string = address_data["display_name"] #todo extract general location only
 
     if data.get(user_id) == None:
         data.update({user_id:{"username": update.effective_user.username, "latitude": lat, "longitude" : longi, "address" : address_string}})
@@ -122,6 +124,18 @@ def update_location(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(f"All set! Your new location is {lat}, {longi} ({address_string}).")
     return ConversationHandler.END
 
+def delete_user_info(update: Update, context: CallbackContext) -> None:
+    user_id = str(update.effective_user.id)
+    with open("locations.json", 'r') as file:
+        data = json.load(file)
+    if data.get(user_id) == None:
+        update.message.reply_text("Hi new user, rest assured we have not collected any data from you, so nothing has been erased. Perhaps you can try /setlocation and give me something to delete afterwards?")
+    else:
+        del data[user_id]
+        with open("locations.json", 'w') as file:
+            json.dump(data, file, indent = 4)
+        update.message.reply_text("Voilà! I have erased your existence (on my server). Keep it up and leave no trace in the cyber world! \n/myinfo <- click it to see for yourself, scumbag")
+
 def cancel(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('ℹ️The setup process is cancelled.')
     return ConversationHandler.END
@@ -134,16 +148,17 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # Register a command handler
-    dispatcher.add_handler(CommandHandler('credits', credits))
-    dispatcher.add_handler(CommandHandler('starmap', send_star_map))
-    dispatcher.add_handler(CommandHandler('myinfo', show_user_info))
+    dispatcher.add_handler(CommandHandler("credits", credits))
+    dispatcher.add_handler(CommandHandler("starmap", send_star_map))
+    dispatcher.add_handler(CommandHandler("myinfo", show_user_info))
+    dispatcher.add_handler(CommandHandler("deletemyinfo", delete_user_info))
 
     dispatcher.add_handler(ConversationHandler(
-        entry_points = [CommandHandler('setlocation', set_location)],
+        entry_points = [CommandHandler("setlocation", set_location)],
         states = {
             0: [MessageHandler(Filters.location, update_location)]
         },
-        fallbacks = [CommandHandler('cancel', cancel)],
+        fallbacks = [CommandHandler("cancel", cancel)],
         conversation_timeout = 120 # 2 mins
     ))
 
