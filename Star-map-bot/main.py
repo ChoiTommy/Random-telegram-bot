@@ -1,18 +1,14 @@
 # https://www.epochconverter.com/
 # https://nominatim.org/release-docs/develop/api/Reverse/
 
-# TODO pdf to image, red scale img, timezone support, star map features toggles, etc.
+# TODO pdf to image, red scale img, star map features toggles, etc.
+import misc, userinfo, settings, starmap
+
 import logging
 import os
-import time
-import json
-import urllib.request, ssl
-
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, User, ParseMode
-from telegram.ext import Updater, CommandHandler, ConversationHandler, CallbackContext, MessageHandler, Filters
+from telegram import Update, ParseMode
+from telegram.ext import Updater, CommandHandler, ConversationHandler, MessageHandler, Filters
 from dotenv import load_dotenv
-# from geopy.geocoders import Nominatim
-
 
 # Enable logging
 logging.basicConfig(
@@ -24,122 +20,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# starmap URLs
-STARMAP_URL = "https://www.heavens-above.com/SkyAndTelescope/StSkyChartPDF.ashx"
-'''params: time, latitude, longitude, location'''
-REST_OF_THE_URL = f"utcOffset=28800000&showEquator=false&showEcliptic=true&showStarNames=true&showPlanetNames=true&showConsNames=true&showConsLines=true&showConsBoundaries=false&showSpecials=false&use24hClock=true"
-
-
-
-def send_star_map(update: Update, context: CallbackContext) -> None:
-    user_id = str(update.effective_user.id)
-    with open("locations.json", 'r') as file:
-        data = json.load(file)
-
-    if data.get(user_id) != None: # check_if_user_data_exists(update.effective_user):
-
-        lat = str(data[user_id]["latitude"])
-        longi = str(data[user_id]["longitude"])
-        address = data[user_id]["address"].replace(',', "%2c").replace(' ', "%20")
-
-        fetch_target = f"{STARMAP_URL}?time={str(int(time.time()*1000))}&latitude={lat}&longitude={longi}&location={address}&{REST_OF_THE_URL}"
-
-        update.message.reply_document(document = fetch_target)
-        update.message.reply_text("Enjoy the stunning stars\! Be considerate and *leave no trace* while stargazing\!", parse_mode=ParseMode.MARKDOWN_V2)
-    else:
-        update.message.reply_text("Please set your location with /setlocation first!")
-
-
-def show_user_info(update: Update, context: CallbackContext) -> None:
-    user_id = str(update.effective_user.id)
-    with open("locations.json", 'r') as file:
-        data = json.load(file)
-
-    if data.get(str(update.effective_user.id)) != None: # check_if_user_data_exists(update.effective_user):
-        update.message.reply_text(
-            f'''Hi @{update.effective_user.username},
-Your currently set location is
-Latitude: {data[user_id]["latitude"]}
-Longitude: {data[user_id]["longitude"]}
-Location: {data[user_id]["address"]}
-
-/setlocation to modify it. /deletemyinfo to delete your data.
-            '''
-        )
-    else:
-        update.message.reply_text(
-            f'''Hi @{update.effective_user.username},
-You have yet to set any location.
-/setlocation to start off.
-            '''
-        )
-
-def credits(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(
-        text = "Star map is made available to you by skyandtelescope.org. This bot is not affiliated with skyandtelescope.org. Visit their website for more information.",
-        reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Visit skyandtelescope.org", url="https://skyandtelescope.org/")],
-            [InlineKeyboardButton("Check out their interactive sky chart", url="https://skyandtelescope.org/interactive-sky-chart/")]
-        ])
-    )
-
-
-def set_location(update: Update, context: CallbackContext) -> int:
-    user_id = str(update.effective_user.id)
-    with open("locations.json", 'r') as file:
-        data = json.load(file)
-    context.user_data["JSON"] = data
-
-    if data.get(user_id) != None: # check_if_user_data_exists(update.effective_user):
-        update.message.reply_text(f"Your current location is {data[user_id]['latitude']}, {data[user_id]['longitude']} ({data[user_id]['address']}).")
-        update.message.reply_text("Send your new location if you wish to change. /cancel to keep the current setting.")
-    else:
-        update.message.reply_text("Send your location to me :O Trust me I won\'t tell others ~\(unless someone pays me A LOT\)~ ", parse_mode = ParseMode.MARKDOWN_V2)
-    return 0
-
-def update_location(update: Update, context: CallbackContext) -> int:
-    user_id = str(update.effective_user.id)
-    lat = update.message.location.latitude
-    longi = update.message.location.longitude
-    data = context.user_data["JSON"]
-
-    context = ssl._create_unverified_context()
-    NOMINATIM_REVERSE_API = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={longi}&accept-language=en-US"
-    # print(NOMINATIM_REVERSE_API)
-    with urllib.request.urlopen(NOMINATIM_REVERSE_API, context=context) as address_file:
-        address_data = json.load(address_file)
-
-    # address_string = f"{address_data['address']['suburb']}, {address_data['address']['country']}"
-    address_string = address_data["display_name"] #todo extract general location only
-
-    if data.get(user_id) == None:
-        data.update({user_id:{"username": update.effective_user.username, "latitude": lat, "longitude" : longi, "address" : address_string}})
-    else:
-        data[user_id]["latitude"] = lat
-        data[user_id]["longitude"] = longi
-        data[user_id]["address"] = address_string
-
-    with open("locations.json", 'w') as file:
-        json.dump(data, file, indent = 4)
-    update.message.reply_text(f"All set! Your new location is {lat}, {longi} ({address_string}).")
-    return ConversationHandler.END
-
-def delete_user_info(update: Update, context: CallbackContext) -> None:
-    user_id = str(update.effective_user.id)
-    with open("locations.json", 'r') as file:
-        data = json.load(file)
-    if data.get(user_id) == None:
-        update.message.reply_text("Hi new user, rest assured we have not collected any data from you, so nothing has been erased. Perhaps you can try /setlocation and give me something to delete afterwards?")
-    else:
-        del data[user_id]
-        with open("locations.json", 'w') as file:
-            json.dump(data, file, indent = 4)
-        update.message.reply_text("Voilà! I have erased your existence (on my server). Keep it up and leave no trace in the cyber world! \n/myinfo <- click it to see for yourself, scumbag")
-
-def cancel(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text('ℹ️The setup process is cancelled.')
-    return ConversationHandler.END
-
 def main() -> None:
     # Create the Updater and pass it your bot's token.
     updater = Updater(BOT_TOKEN)
@@ -148,17 +28,17 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # Register a command handler
-    dispatcher.add_handler(CommandHandler("credits", credits))
-    dispatcher.add_handler(CommandHandler("starmap", send_star_map))
-    dispatcher.add_handler(CommandHandler("myinfo", show_user_info))
-    dispatcher.add_handler(CommandHandler("deletemyinfo", delete_user_info))
+    dispatcher.add_handler(CommandHandler("credits", misc.show_credits))
+    dispatcher.add_handler(CommandHandler("starmap", starmap.send_star_map))
+    dispatcher.add_handler(CommandHandler("myinfo", userinfo.show_user_info))
+    dispatcher.add_handler(CommandHandler("deletemyinfo", userinfo.delete_user_info))
 
     dispatcher.add_handler(ConversationHandler(
-        entry_points = [CommandHandler("setlocation", set_location)],
+        entry_points = [CommandHandler("setlocation", settings.set_location)],
         states = {
-            0: [MessageHandler(Filters.location, update_location)]
+            0: [MessageHandler(Filters.location, settings.update_location)]
         },
-        fallbacks = [CommandHandler("cancel", cancel)],
+        fallbacks = [CommandHandler("cancel", settings.cancel)],
         conversation_timeout = 120 # 2 mins
     ))
 
